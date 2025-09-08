@@ -1,0 +1,19 @@
+{
+  "type": "record",
+  "name": "CardReplacementEvent",
+  "namespace": "com.bank.events",
+  "fields": [
+    {"name":"eventId","type":"string"},
+    {"name":"requestId","type":"string"},
+    {"name":"customerId","type":"string"},
+    {"name":"cardPANMasked","type":"string"},
+    {"name":"reasonCode","type":"string"},
+    {"name":"priority","type":"string"},
+    {"name":"branchCode","type":"string"},
+    {"name":"deliveryAddress","type":"string"},
+    {"name":"requestedAt","type":{"type":"long","logicalType":"timestamp-millis"}},
+    {"name":"attemptNumber","type":"int"},
+    {"name":"correlationId","type":"string"},
+    {"name":"status","type":"string"}
+  ]
+}
