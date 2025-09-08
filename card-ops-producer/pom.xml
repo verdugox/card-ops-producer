@@ -183,7 +183,6 @@
 				<configuration>
 					<source>${java.version}</source>
 					<target>${java.version}</target>
-					<generatedSourcesDirectory>${project.build.directory}/generated-sources/avro</generatedSourcesDirectory>
 					<annotationProcessorPaths>
 						<path>
 							<groupId>org.mapstruct</groupId>
