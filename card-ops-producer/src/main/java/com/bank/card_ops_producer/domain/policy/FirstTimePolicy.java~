@@ -6,6 +6,9 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class FirstTimePolicy implements AttemptPolicy {
-    @Override public io.reactivex.rxjava3.core.Single<Integer> resolveAttempt(CardReplacementRequestDto dto){ return io.reactivex.rxjava3.core.Single.just(1); }
-    @Override public String name(){ return "firstTimePolicy"; }
+    @Override
+    public Single<Integer> resolveAttempt(CardReplacementRequestDto dto) {
+        // Aquí tus reglas de primera vez
+        return Single.just(1);
+    }
 }
