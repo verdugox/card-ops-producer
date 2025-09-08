@@ -1,30 +1,28 @@
+// src/main/java/.../infrastructure/decorator/ResilientPublisher.java
 package com.bank.card_ops_producer.infrastructure.decorator;
 
 import com.bank.card_ops_producer.domain.port.EventPublisher;
-import io.github.resilience4j.circuitbreaker.CircuitBreaker;
-import io.github.resilience4j.retry.Retry;
-import io.github.resilience4j.rxjava3.circuitbreaker.operator.CircuitBreakerOperator;
-import io.github.resilience4j.rxjava3.retry.transformer.RetryTransformer;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import io.reactivex.rxjava3.core.Single;
-import org.springframework.kafka.support.SendResult;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
+import org.springframework.kafka.support.SendResult;
 
-@Component
+@Component("resilientPublisher")
+@Primary // 👈 este será el bean preferido para EventPublisher<Object>
+@RequiredArgsConstructor
 public class ResilientPublisher implements EventPublisher<Object> {
-    private final EventPublisher<Object> delegate;
-    private final CircuitBreaker cb;
-    private final Retry retry;
 
-    public ResilientPublisher(EventPublisher<Object> delegate) {
-        this.delegate = delegate;
-        this.cb = CircuitBreaker.ofDefaults("kafkaPublisher");
-        this.retry = Retry.ofDefaults("kafkaPublisher");
-    }
+    // Inyecta explícitamente el publisher “real” de Kafka
+    private final @Qualifier("kafkaEventPublisher") EventPublisher<Object> delegate;
 
     @Override
+    @CircuitBreaker(name = "kafkaPublisher")
+    @Retry(name = "kafkaPublisher")
     public Single<SendResult<String, Object>> publish(String topic, String key, Object value) {
-        return delegate.publish(topic, key, value)
-                .compose(CircuitBreakerOperator.of(cb))
-                .compose(RetryTransformer.of(retry));
+        return delegate.publish(topic, key, value);
     }
 }
