@@ -1,17 +1,30 @@
+// src/main/java/com/bank/card_ops_producer/domain/mapper/EventMapper.java
 package com.bank.card_ops_producer.domain.mapper;
 
 import com.bank.card_ops_producer.api.dto.CardReplacementRequestDto;
 import com.bank.events.CardReplacementEvent;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
+import org.springframework.stereotype.Component;
 
 import java.util.UUID;
 
-@Mapper(componentModel = "spring", imports = {UUID.class})
-public interface EventMapper {
+@Component
+public class EventMapper {
 
-    @Mapping(target = "eventId", expression = "java(UUID.randomUUID().toString())")
-    @Mapping(target = "attemptNumber", source = "attemptNumber")
-        // requestedAt ya es Instant en el DTO y en el Avro → no lo toques
-    CardReplacementEvent toEvent(CardReplacementRequestDto dto, int attemptNumber);
+    public CardReplacementEvent toEvent(CardReplacementRequestDto dto, int attemptNumber) {
+        // Ajusta exactamente los nombres/tipos a tu AVSC
+        return CardReplacementEvent.newBuilder()
+                .setEventId(UUID.randomUUID().toString())
+                .setRequestId(dto.getRequestId())
+                .setCustomerId(dto.getCustomerId())
+                .setCardPANMasked(dto.getCardPANMasked())
+                .setReasonCode(dto.getReasonCode())
+                .setPriority(dto.getPriority())
+                .setBranchCode(dto.getBranchCode())
+                .setDeliveryAddress(dto.getDeliveryAddress())
+                .setRequestedAt(dto.getRequestedAt())  // ahora es Instant directo
+                .setAttemptNumber(attemptNumber)
+                .setCorrelationId(dto.getCorrelationId())
+                .setStatus(dto.getStatus())
+                .build();
+    }
 }

@@ -5,23 +5,39 @@ import com.bank.card_ops_producer.domain.port.AttemptStateRepository;
 import io.reactivex.rxjava3.core.Single;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Repository;
+import reactor.adapter.rxjava.RxJava3Adapter;   // 👈 IMPORTANTE
 
-@Component
+import java.time.Duration;
+
+@Repository
 @RequiredArgsConstructor
 public class RedisAttemptStateRepository implements AttemptStateRepository {
 
-    private final ReactiveStringRedisTemplate redis; // 👈 usa el autoconfigurado
-
-    private static final String PREFIX = "card:req:";
+    private final ReactiveStringRedisTemplate redis;
 
     @Override
     public Single<Boolean> existsByRequestId(String requestId) {
-        return Single.fromPublisher(redis.hasKey(PREFIX + requestId));
+        return RxJava3Adapter.monoToSingle(
+                redis.hasKey(key(requestId))               // Mono<Boolean>
+                        .map(Boolean::booleanValue)
+        );
     }
 
     @Override
     public Single<Boolean> saveFirstAttempt(String requestId) {
-        return Single.fromPublisher(redis.opsForValue().set(PREFIX + requestId, "1"));
+        return RxJava3Adapter.monoToSingle(
+                redis.opsForValue().set(key(requestId), "1") // Mono<Boolean>
+        );
     }
+
+    @Override
+    public Single<Boolean> saveEventSnapshot(String requestId, String json, Duration ttl) {
+        return RxJava3Adapter.monoToSingle(
+                redis.opsForValue().set(snapKey(requestId), json, ttl) // Mono<Boolean>
+        );
+    }
+
+    private String key(String id)     { return "card:req:"   + id; }
+    private String snapKey(String id) { return "card:event:" + id; }
 }
