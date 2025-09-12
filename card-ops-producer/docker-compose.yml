@@ -82,3 +82,39 @@ services:
       interval: 15s
       timeout: 5s
       retries: 20
+  # --- Consumer (dispatch-consumer) ---
+
+  mongo:
+    image: mongo:6
+    ports: [ "27018:27017" ]
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "bash", "-lc", "mongosh --quiet --eval 'db.runCommand({ ping: 1 })' || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  dispatch-consumer:
+    build:
+      context: ../../dispatch-consumer/dispatch-consumer  # 👈 relativo al docker-compose.yml
+      dockerfile: Dockerfile
+    image: verdugox/dispatch-consumer:1.0
+    depends_on:
+      kafka: { condition: service_healthy }
+      schema-registry: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      mongo: { condition: service_healthy }
+    environment:
+      SERVER_PORT: 8086
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MONGO_URI: mongodb://mongo:27017/cardsdb
+    ports: ["8086:8086"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "wget -qO- http://localhost:8086/api/health >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
