@@ -2,12 +2,7 @@ name: ci-producer
 
 on:
   push:
-    branches: [ "main", "develop" ]
-    paths:
-      - 'card-ops-producer/**'
-  pull_request:
-    paths:
-      - 'card-ops-producer/**'
+    branches: [ "develop" ]
 
 concurrency:
   group: ci-producer-${{ github.ref }}
@@ -62,8 +57,7 @@ jobs:
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/card-ops-producer
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=branch
+            type=raw,value=latest
             type=sha
 
       - name: Build & Push
