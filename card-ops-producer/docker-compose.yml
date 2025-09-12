@@ -118,3 +118,57 @@ services:
       interval: 15s
       timeout: 5s
       retries: 20
+
+  # --- Exporters & Observability ---
+
+  # Exporta métricas de Kafka (broker)
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:latest
+    depends_on:
+      kafka: { condition: service_healthy }
+    command: ["--kafka.server=kafka:9092"]
+    ports: [ "9308:9308" ]
+    restart: unless-stopped
+
+  # Exporta métricas de Redis
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.62.0
+    environment:
+      REDIS_ADDR: redis:6379
+    ports: [ "9121:9121" ]
+    restart: unless-stopped
+
+  # Exporta métricas de Mongo
+  mongodb-exporter:
+    image: percona/mongodb_exporter:0.40
+    depends_on:
+      mongo: { condition: service_healthy }
+    command:
+      - '--mongodb.uri=mongodb://mongo:27017'
+    ports: [ "9216:9216" ]
+    restart: unless-stopped
+
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    depends_on:
+      - card-ops-producer
+      - dispatch-consumer
+      - kafka-exporter
+      - redis-exporter
+      - mongodb-exporter
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports: [ "9090:9090" ]
+    restart: unless-stopped
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:10.4.6
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    ports: [ "3000:3000" ]
+    restart: unless-stopped

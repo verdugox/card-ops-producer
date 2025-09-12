@@ -1,0 +1,30 @@
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+scrape_configs:
+  # Spring Boot Actuator /prometheus
+  - job_name: 'card-ops-producer'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['card-ops-producer:8085']
+
+  - job_name: 'dispatch-consumer'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['dispatch-consumer:8086']   # interno del contenedor (tu consumer usa 8086)
+
+  # Kafka broker metrics
+  - job_name: 'kafka-exporter'
+    static_configs:
+      - targets: ['kafka-exporter:9308']
+
+  # Redis metrics
+  - job_name: 'redis-exporter'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  # Mongo metrics
+  - job_name: 'mongodb-exporter'
+    static_configs:
+      - targets: ['mongodb-exporter:9216']
