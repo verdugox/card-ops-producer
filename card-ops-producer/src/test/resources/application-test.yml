@@ -1,0 +1,9 @@
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  kafka:
+    bootstrap-servers: 127.0.0.1:9092  # no se usa: mockeamos
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
