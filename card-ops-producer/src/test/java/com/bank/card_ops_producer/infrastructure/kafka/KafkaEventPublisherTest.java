@@ -19,7 +19,9 @@ class KafkaEventPublisherTest {
         // Arrange
         KafkaTemplate<String, Object> template = mock(KafkaTemplate.class);
         var meters = new SimpleMeterRegistry();
+        // Después de crear el publisher
         var publisher = new KafkaEventPublisher(template, meters);
+        publisher.initMeters(); // <-- Esto inicializa los meters
 
         // future ya completado OK
         var sendResult = mock(SendResult.class);
@@ -39,8 +41,9 @@ class KafkaEventPublisherTest {
         // Arrange
         KafkaTemplate<String, Object> template = mock(KafkaTemplate.class);
         var meters = new SimpleMeterRegistry();
+        // Después de crear el publisher
         var publisher = new KafkaEventPublisher(template, meters);
-
+        publisher.initMeters(); // <-- Esto inicializa los meters
         // future que falla
         var failed = new CompletableFuture<SendResult<String,Object>>();
         failed.completeExceptionally(new RuntimeException("boom"));
