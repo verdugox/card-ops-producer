@@ -3,7 +3,6 @@ package com.bank.card_ops_producer.domain.policy;
 import com.bank.card_ops_producer.api.dto.CardReplacementRequestDto;
 import io.reactivex.rxjava3.core.Single;
 
-
 //Qué hace?
 //Define el contrato que todas las políticas deben seguir.
 //Cada política:
