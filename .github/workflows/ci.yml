@@ -1,38 +1,52 @@
-name: ci-producer
+name: ci-producer                              # Nombre del workflow (pipeline de CI para el producer)
 
-on:
-  push:
-    branches: [ "develop" ]
+on:                                            # Define en qué situaciones se ejecuta el workflow
+  push:                                        # Se ejecuta cuando hay un push
+    branches: [ "develop" ]                    # Solo en la rama "develop"
+concurrency:                                   # Control de concurrencia
+  group: ci-producer-${{ github.ref }}         # Agrupa ejecuciones por branch/ref
+  cancel-in-progress: true                     # Cancela ejecuciones anteriores si hay una nueva
 
-concurrency:
-  group: ci-producer-${{ github.ref }}
-  cancel-in-progress: true
+jobs:                                          # Sección donde se definen los jobs
+  build-and-docker:                            # Nombre del job principal
+    runs-on: ubuntu-latest                     # El job corre en un runner Ubuntu
+    steps:                                     # Lista de pasos a ejecutar dentro del job
+      - uses: actions/checkout@v4              # Descarga el código fuente del repositorio
 
-jobs:
-  # --- Job 1: Build con Maven ---
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      # --- Java / Maven cache ---
+      - uses: actions/setup-java@v4            # Instala Java en el runner
+        with:                                  # Configuración de la acción
+          distribution: temurin                # Distribución de OpenJDK (Temurin/Adoptium)
+          java-version: '17'                   # Versión de Java a usar
+          cache: maven                         # Habilita cache para dependencias Maven
 
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: maven
-
-      # Detecta pom.xml y Dockerfile automáticamente
+      # --- Detect POM and Dockerfile paths robustly ---
+      # --- Detect POM and Dockerfile paths robustly ---
+      #set -euo pipefail → asegura que el script falle si ocurre un error.
+      #Busca pom.xml con git ls-files:
+      #Toma el primero que encuentre (prefiere el root).
+      #Si no lo encuentra, falla con exit 1.
+      #Obtiene el directorio del pom.xml → POM_DIR.
+      #Busca el Dockerfile:
+      #Primero revisa si está en el mismo directorio que el pom.xml.
+      #Si no, lo busca en cualquier parte del repo.
+      #Si no lo encuentra, falla con exit 1.
+      #Define el directorio de contexto (CTX_DIR) para el build Docker.
+      #Guarda las rutas detectadas (pom_path, pom_dir, dockerfile, context_dir) en $GITHUB_OUTPUT → así otros steps (mvn build, docker build) las usan.
       - name: Detect paths (pom.xml / Dockerfile)
         id: paths
         shell: bash
         run: |
           set -euo pipefail
+          # First pom.xml found (prefer root, else nested)
           POM_PATH="$(git ls-files | grep -E '(^|.*/)+pom\.xml$' | head -n1 || true)"
           if [ -z "${POM_PATH}" ]; then
             echo "No pom.xml found" >&2
             exit 1
           fi
           POM_DIR="$(dirname "${POM_PATH}")"
+
+          # First Dockerfile found (prefer same dir as pom, else global)
           if [ -f "${POM_DIR}/Dockerfile" ]; then
             DOCKERFILE="${POM_DIR}/Dockerfile"
             CTX_DIR="${POM_DIR}"
@@ -44,73 +58,41 @@ jobs:
             fi
             CTX_DIR="$(dirname "${DOCKERFILE}")"
           fi
-          echo "pom_path=${POM_PATH}"     >> "$GITHUB_OUTPUT"
-          echo "pom_dir=${POM_DIR}"       >> "$GITHUB_OUTPUT"
-          echo "dockerfile=${DOCKERFILE}" >> "$GITHUB_OUTPUT"
-          echo "context_dir=${CTX_DIR}"   >> "$GITHUB_OUTPUT"
+
+          echo "pom_path=${POM_PATH}"        >> "$GITHUB_OUTPUT"
+          echo "pom_dir=${POM_DIR}"          >> "$GITHUB_OUTPUT"
+          echo "dockerfile=${DOCKERFILE}"    >> "$GITHUB_OUTPUT"
+          echo "context_dir=${CTX_DIR}"      >> "$GITHUB_OUTPUT"
 
       - name: Build with Maven (skip tests)
         run: mvn -B -DskipTests -f "${{ steps.paths.outputs.pom_path }}" package
 
-      - name: Upload JAR as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: producer-jar
-          path: ${{ steps.paths.outputs.pom_dir }}/target/*.jar
-
-  # --- Job 2: Docker Build ---
-  docker-build:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download JAR from build job
-        uses: actions/download-artifact@v4
-        with:
-          name: producer-jar
-          path: target
-
-      - name: Set up Docker Buildx
+      # --- Docker build & push ---
+      - name: Set up Docker Buildx             # Configura Docker Buildx (para builds avanzados/multi-plataforma)
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image (local only)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile
-          push: false
-          tags: verdugox/card-ops-producer:test
-
-  # --- Job 3: Docker Push ---
-  docker-push:
-    runs-on: ubuntu-latest
-    needs: docker-build
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Login to Docker Hub
+      - name: Login to Docker Hub              # Autenticación en DockerHub
         uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        with:                                  # Configuración de la acción
+          username: ${{ secrets.DOCKERHUB_USERNAME }}   # Usuario almacenado en GitHub Secrets
+          password: ${{ secrets.DOCKERHUB_TOKEN }}      # Token de acceso almacenado en GitHub Secrets
 
-      - name: Docker meta (tags/labels)
-        id: meta
+      - name: Docker meta (tags/labels)        # Genera metadata (tags/labels) para la imagen Docker
+        id: meta                               # ID del step (para outputs)
         uses: docker/metadata-action@v5
-        with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/card-ops-producer
-          tags: |
-            type=raw,value=latest
-            type=sha
+        with:                                  # Configuración de la metadata
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/card-ops-producer  # Nombre de la imagen
+          tags: |                              # Estrategias de versionado
+            type=raw,value=latest              # Tag "latest"
+            type=sha                           # Tag con el SHA del commit
 
-      - name: Build & Push image
+      - name: Build & Push image               # Construye y sube la imagen Docker
         uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/card-ops-producer:buildcache
-          cache-to:   type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/card-ops-producer:buildcache,mode=max
+        with:                                  # Configuración del build
+          context: ${{ steps.paths.outputs.context_dir }}   # Directorio de contexto del build
+          file:    ${{ steps.paths.outputs.dockerfile }}    # Path al Dockerfile detectado
+          push:    true                                     # Publica la imagen en DockerHub
+          tags:    ${{ steps.meta.outputs.tags }}           # Tags generados en el paso meta
+          labels:  ${{ steps.meta.outputs.labels }}         # Labels generados en el paso meta
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/card-ops-producer:buildcache  # Usa cache de builds previos
+          cache-to:   type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/card-ops-producer:buildcache,mode=max  # Actualiza el cache remoto
