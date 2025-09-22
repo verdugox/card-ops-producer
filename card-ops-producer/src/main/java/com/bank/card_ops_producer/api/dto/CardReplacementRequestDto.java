@@ -7,6 +7,9 @@ import java.time.Instant;
 
 @Data
 @Builder
+//Defines cómo se recibe la request REST (CardReplacementRequestDto).
+//Esto es lo que el usuario/cliente del API envía.
+
 public class CardReplacementRequestDto {
     @NotBlank private String requestId;
     @NotBlank private String customerId;

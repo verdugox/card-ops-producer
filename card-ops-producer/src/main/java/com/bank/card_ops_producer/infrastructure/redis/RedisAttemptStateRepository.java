@@ -10,6 +10,19 @@ import reactor.adapter.rxjava.RxJava3Adapter;   // 👈 IMPORTANTE
 
 import java.time.Duration;
 
+//Qué hace?:
+//Implementa el puerto AttemptStateRepository.
+//Usa ReactiveStringRedisTemplate para interactuar con Redis de manera reactiva.
+//Adapta de Project Reactor (Mono) a RxJava (Single) con RxJava3Adapter.
+//Métodos
+//existsByRequestId → consulta si ya existe un intento para ese requestId (redis.hasKey(...)).
+//saveFirstAttempt → guarda un valor "1" para marcar que ese request ya tuvo un primer intento.
+//saveEventSnapshot → guarda el evento como JSON con un TTL (expira después de X tiempo).
+//Claves Redis:
+//card:req:{id} → para marcar intentos.
+//card:event:{id} → para guardar snapshot del evento.
+//Resumen: Es el cerebro de control de reintentos, usando Redis como almacenamiento rápido.
+
 @Repository
 @RequiredArgsConstructor
 public class RedisAttemptStateRepository implements AttemptStateRepository {

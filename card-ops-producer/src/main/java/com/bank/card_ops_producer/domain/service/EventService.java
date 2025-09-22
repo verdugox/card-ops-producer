@@ -9,6 +9,8 @@ import io.reactivex.rxjava3.core.Single;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+//Usa el Mapper, aplica Policies y delega en los puertos.
+//Es el “cerebro” que coordina todo, sin saber nada de Kafka o Redis.
 @Service
 public class EventService {
 

@@ -10,8 +10,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/card-replacements")
-//Último paso: expone el endpoint REST.
-//Solo recibe DTO, lo transforma y delega al EventService.
 public class CardReplacementController {
 
     private final EventService service;

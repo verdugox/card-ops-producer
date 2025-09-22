@@ -1,4 +1,5 @@
 name: ci-producer
+
 on:
   push:
     branches: [ "develop" ]
@@ -8,56 +9,57 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-docker:
+  # --- Job 1: Build con Maven ---
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      # --- Java / Maven cache ---
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
           cache: maven
 
-      # --- Detect POM and Dockerfile paths robustly ---
-      - name: Detect paths (pom.xml / Dockerfile)
-        id: paths
-        shell: bash
-        run: |
-          set -euo pipefail
-          # First pom.xml found (prefer root, else nested)
-          POM_PATH="$(git ls-files | grep -E '(^|.*/)+pom\.xml$' | head -n1 || true)"
-          if [ -z "${POM_PATH}" ]; then
-            echo "No pom.xml found" >&2
-            exit 1
-          fi
-          POM_DIR="$(dirname "${POM_PATH}")"
-
-          # First Dockerfile found (prefer same dir as pom, else global)
-          if [ -f "${POM_DIR}/Dockerfile" ]; then
-            DOCKERFILE="${POM_DIR}/Dockerfile"
-            CTX_DIR="${POM_DIR}"
-          else
-            DOCKERFILE="$(git ls-files | grep -E '(^|.*/)+Dockerfile$' | head -n1 || true)"
-            if [ -z "${DOCKERFILE}" ]; then
-              echo "No Dockerfile found" >&2
-              exit 1
-            fi
-            CTX_DIR="$(dirname "${DOCKERFILE}")"
-          fi
-
-          echo "pom_path=${POM_PATH}"        >> "$GITHUB_OUTPUT"
-          echo "pom_dir=${POM_DIR}"          >> "$GITHUB_OUTPUT"
-          echo "dockerfile=${DOCKERFILE}"    >> "$GITHUB_OUTPUT"
-          echo "context_dir=${CTX_DIR}"      >> "$GITHUB_OUTPUT"
-
       - name: Build with Maven (skip tests)
-        run: mvn -B -DskipTests -f "${{ steps.paths.outputs.pom_path }}" package
+        run: mvn -B -DskipTests package
 
-      # --- Docker build & push ---
+      - name: Upload JAR as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: producer-jar
+          path: target/*.jar
+
+  # --- Job 2: Docker Build ---
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: build  # depende del build anterior
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download JAR from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: producer-jar
+          path: target
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image (local)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          tags: verdugox/card-ops-producer:test
+
+  # --- Job 3: Docker Push ---
+  docker-push:
+    runs-on: ubuntu-latest
+    needs: docker-build
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -77,10 +79,10 @@ jobs:
       - name: Build & Push image
         uses: docker/build-push-action@v6
         with:
-          context: ${{ steps.paths.outputs.context_dir }}
-          file:    ${{ steps.paths.outputs.dockerfile }}
-          push:    true
-          tags:    ${{ steps.meta.outputs.tags }}
-          labels:  ${{ steps.meta.outputs.labels }}
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/card-ops-producer:buildcache
           cache-to:   type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/card-ops-producer:buildcache,mode=max

@@ -11,6 +11,22 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Component;
 
+//Qué hace? :
+//Es la implementación real del puerto EventPublisher.
+//Usa KafkaTemplate de Spring para enviar mensajes a Kafka.
+//Envuelve la operación en un Single de RxJava para manejarlo de forma reactiva/asíncrona.
+//Instrumenta métricas con Micrometer para Prometheus/Grafana:
+//Counters → cuántos eventos publicados con éxito y con error.
+//Timers → cuánto tiempo tardan las publicaciones.
+//Flujo:
+//Arranca el timer (startNanos).
+//Construye métricas por tópico (okByTopic, errByTopic).
+//Ejecuta template.send(...) (retorna CompletableFuture).
+//En el callback:
+//Si hay error: incrementa publishedErr y falla el Single.
+//Si éxito: incrementa publishedOk y emite el SendResult.
+//Resumen: Es el motor real que publica en Kafka + monitorea métricas.
+
 @Component("kafkaEventPublisher")
 @RequiredArgsConstructor
 public class KafkaEventPublisher implements EventPublisher<Object> {

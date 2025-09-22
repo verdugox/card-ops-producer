@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.UUID;
 
+//Transforma el CardReplacementRequestDto en el evento Avro CardReplacementEvent.
+//Aquí ocurre la conversión del mundo HTTP → mundo eventos.
 @Component
 public class EventMapper {
 

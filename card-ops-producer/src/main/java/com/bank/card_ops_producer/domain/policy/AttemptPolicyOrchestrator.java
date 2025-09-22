@@ -9,6 +9,23 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
+//Qué hace?
+//Es el cerebro/orquestador de todas las políticas.
+//Decide qué policy aplicar en base a lo que responda Redis.
+//Flujo:
+//Convierte el DTO a JSON → para guardar un snapshot en Redis.
+//Llama a repo.existsByRequestId(requestId):
+//Si existe → significa que es al menos la segunda vez.
+//Guarda snapshot → aplica SecondTimePolicy (intento = 2).
+//Si NO existe → significa que es la primera vez.
+//Guarda saveFirstAttempt en Redis → guarda snapshot → aplica FirstTimePolicy (intento = 1).
+//Usa onErrorReturnItem(false) para que errores de Redis no bloqueen la lógica → si Redis falla, igual sigue con la política.
+//Detalles importantes
+//@Primary → este bean será el principal que se inyecte como AttemptPolicy en el dominio.
+//ObjectMapper → serializa DTO → JSON, si falla devuelve "{}".
+//Devuelve Single<Integer> con el número de intento resuelto.
+//Básicamente: decide si este request es el primer intento o un reintento y asegura que siempre haya snapshot en Redis.
+
 @Component
 @Primary
 @RequiredArgsConstructor

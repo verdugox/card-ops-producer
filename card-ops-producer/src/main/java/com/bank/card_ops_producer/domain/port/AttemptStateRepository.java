@@ -1,9 +1,9 @@
-// src/main/java/com/bank/card_ops_producer/domain/port/AttemptStateRepository.java
 package com.bank.card_ops_producer.domain.port;
 
 import io.reactivex.rxjava3.core.Single;
 import java.time.Duration;
 
+//Define la acción de guardar estado de intentos.
 public interface AttemptStateRepository {
     Single<Boolean> existsByRequestId(String requestId);
     Single<Boolean> saveFirstAttempt(String requestId);
