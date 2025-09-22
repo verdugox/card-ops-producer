@@ -95,7 +95,7 @@ jobs:
           context: ${{ needs.detect-paths.outputs.context_dir }}
           file:    ${{ needs.detect-paths.outputs.dockerfile }}
           push:    false
-          tags:    verdugox/card-ops-producer:test
+          tags:    verdugox/card-ops-producer:latest
 
   # --- Job 4: Docker Push ---
   docker-push:
