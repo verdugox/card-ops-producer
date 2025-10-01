@@ -26,6 +26,16 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+  tracing:             # ✅ trazas habilitadas via Actuator
+    enabled: true
+    sampling:
+      probability: 1.0
+  otlp:                # ✅ nuevo bloque para OpenTelemetry
+    tracing:
+      endpoint: http://otel-collector:4317
+    metrics:
+      export:
+        enabled: true
 
 resilience4j:
   circuitbreaker:
@@ -46,3 +56,17 @@ resilience4j:
         retry-exceptions:
           - org.apache.kafka.common.errors.TimeoutException
           - org.springframework.kafka.KafkaException
+
+otel:                  # ⚠️ opcional si usas configuración manual
+  exporter:
+    otlp:
+      endpoint: http://otel-collector:4317
+  resource:
+    attributes:
+      service.name: ${spring.application.name}
+      service.version: 1.0.0
+
+logging:
+  level:
+    root: INFO
+    card-ops-producer: DEBUG

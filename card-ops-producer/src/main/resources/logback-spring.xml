@@ -1,0 +1,28 @@
+<configuration scan="true">
+
+    <!-- Definir variable con fallback -->
+    <property name="LOGSTASH_HOST" value="${ELASTIC_HOST:-logstash:5000}" />
+
+    <!-- Consola -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{36} - %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- Logstash TCP -->
+    <appender name="LOGSTASH" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
+        <destination>${LOGSTASH_HOST}</destination>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"service":"card-ops-producer"}</customFields>
+        </encoder>
+    </appender>
+
+    <!-- Niveles globales -->
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="LOGSTASH"/>
+    </root>
+
+</configuration>

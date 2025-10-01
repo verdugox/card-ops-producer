@@ -69,12 +69,15 @@ services:
       kafka: { condition: service_healthy }
       schema-registry: { condition: service_healthy }
       redis: { condition: service_healthy }
+      otel-collector: { condition: service_started }
     environment:
       SERVER_PORT: 8085
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SCHEMA_REGISTRY_URL: http://schema-registry:8081
       REDIS_HOST: redis
       SPRING_PROFILES_ACTIVE: docker
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      LOGSTASH_DESTINATION: logstash:5000   #  ahora la variable existe
     ports: ["8085:8085"]
     restart: unless-stopped
     healthcheck:
@@ -104,6 +107,7 @@ services:
       schema-registry: { condition: service_healthy }
       redis: { condition: service_healthy }
       mongo: { condition: service_healthy }
+      otel-collector: { condition: service_started }
     environment:
       SERVER_PORT: 8086
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -111,6 +115,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       MONGO_URI: mongodb://mongo:27017/cardsdb
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports: ["8086:8086"]
     restart: unless-stopped
     healthcheck:
@@ -148,7 +153,6 @@ services:
     ports: [ "9216:9216" ]
     restart: unless-stopped
 
-  # Prometheus
   prometheus:
     image: prom/prometheus:v2.55.1
     depends_on:
@@ -162,7 +166,6 @@ services:
     ports: [ "9090:9090" ]
     restart: unless-stopped
 
-  # Grafana
   grafana:
     image: grafana/grafana:10.4.6
     depends_on:
@@ -172,3 +175,58 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: admin
     ports: [ "3000:3000" ]
     restart: unless-stopped
+
+  # --- OpenTelemetry Collector ---
+  otel-collector:
+    image: otel/opentelemetry-collector:0.93.0
+    command: ["--config=/etc/otel-collector-config.yml"]
+    volumes:
+      - ./otel-collector-config.yml:/etc/otel-collector-config.yml
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+      - "9464:9464" # Exporter Prometheus
+    restart: unless-stopped
+
+  # --- ELK ---
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.15.0
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+
+
+  # --- ElasticSearch + Kibana ---
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+    ports:
+      - "9200:9200"
+    restart: unless-stopped
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.0
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    restart: unless-stopped
+
+  apm-server:
+    image: docker.elastic.co/apm/apm-server:8.15.0
+    depends_on:
+      - elasticsearch
+    ports:
+      - "8200:8200"
+    environment:
+      - output.elasticsearch.hosts=["http://elasticsearch:9200"]
+      - apm-server.host=0.0.0.0:8200
+
