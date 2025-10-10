@@ -7,7 +7,7 @@ pipeline {
         DEPLOY_ENV = "dev"
         CONFIG_FILE = "devops/deploy/dev-vars.yaml"
         SONARQUBE = "SonarQube"
-        DOCKERHUB_CREDENTIALS = "dockerhub-cred"
+        DOCKERHUB_CREDENTIALS = "docker-hub"
     }
 
     stages {
