@@ -49,28 +49,31 @@ pipeline {
 
         stage('Start Docker Compose') {
             steps {
-                script {
-                    echo "🧹 Limpiando entorno Docker previo..."
-                    bat """
-                        docker-compose down -v --remove-orphans || exit 0
-                        docker container prune -f
-                        docker image prune -a -f
-                    """
+                dir('card-ops-producer') { // 👈 docker-compose.yml está aquí
+                    script {
+                        echo "🧹 Limpiando entorno Docker previo..."
+                        bat """
+                            docker-compose down -v --remove-orphans || exit 0
+                            docker container prune -f
+                            docker image prune -a -f
+                        """
 
-                    echo "🏗️ Construyendo imágenes sin caché..."
-                    bat """
-                        docker-compose build --no-cache
-                    """
+                        echo "🏗️ Construyendo imágenes sin caché..."
+                        bat """
+                            docker-compose build --no-cache
+                        """
 
-                    echo "🐳 Levantando entorno local de dependencias..."
-                    bat """
-                        docker-compose up -d
-                    """
+                        echo "🐳 Levantando entorno local de dependencias..."
+                        bat """
+                            docker-compose up -d
+                        """
 
-                    echo "✅ Entorno Docker levantado correctamente."
+                        echo "✅ Entorno Docker levantado correctamente."
+                    }
                 }
             }
         }
+
 
 
 
