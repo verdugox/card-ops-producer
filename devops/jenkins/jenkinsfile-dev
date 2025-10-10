@@ -36,7 +36,11 @@ pipeline {
         stage('Clone Dependencies') {
             steps {
                 echo "📂 Clonando dependencia dispatch-consumer..."
-                bat "git clone https://github.com/verdugox/dispatch-consumer.git ..\\dispatch-consumer"
+                checkout([$class: 'GitSCM',
+                    branches: [[name: '*/develop']],
+                    userRemoteConfigs: [[url: 'https://github.com/verdugox/dispatch-consumer.git']]
+                ])
+
             }
         }
 
