@@ -6,7 +6,7 @@ pipeline {
         JAVA_HOME = tool 'JDK17'
         DEPLOY_ENV = "dev"
         CONFIG_FILE = "devops/deploy/dev-vars.yaml"
-        SONARQUBE = "sonarqube-local"
+        SONARQUBE = "SonarQube"
         DOCKERHUB_CREDENTIALS = "dockerhub-cred"
     }
 
@@ -53,16 +53,18 @@ pipeline {
                     echo "🧹 Limpiando entorno Docker previo..."
                     bat """
                         docker-compose down -v --remove-orphans || exit 0
+                        docker container prune -f
+                        docker image prune -a -f
                     """
 
-                    echo "🏗️ Construyendo imagen sin caché..."
+                    echo "🏗️ Construyendo imágenes sin caché..."
                     bat """
-                        docker-compose build --no-cache || exit 0
+                        docker-compose build --no-cache
                     """
 
                     echo "🐳 Levantando entorno local de dependencias..."
                     bat """
-                        docker-compose up -d || exit 0
+                        docker-compose up -d
                     """
 
                     echo "✅ Entorno Docker levantado correctamente."
@@ -71,32 +73,43 @@ pipeline {
         }
 
 
+
         stage('Maven Build & Quality') {
             steps {
                 dir('card-ops-producer') {
-                    echo "🏗️ Compilando y analizando código (JaCoCo + Checkstyle + Sonar)..."
-                    withSonarQubeEnv("${SONARQUBE}") {
-                        bat """
-                            "${MAVEN_HOME}\\bin\\mvn" clean verify sonar:sonar ^
-                            -Dcheckstyle.failOnViolation=false ^
-                            -Dsonar.projectKey=%SONAR_PROJECT_KEY% ^
-                            -Dsonar.host.url=%SONAR_URL% ^
-                            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml ^
-                            -Dsonar.java.checkstyle.reportPaths=target/checkstyle-result.xml
-                        """
-                    }
+                    echo "🏗️ Compilando código con Maven..."
+                    bat """
+                        "${MAVEN_HOME}\\bin\\mvn" clean verify ^
+                        -DskipTests=%SKIP_TESTS% ^
+                        -Dcheckstyle.failOnViolation=false
+                    """
                 }
             }
-            post {
-                unsuccessful {
-                    // Si el build falla, lo marcamos como UNSTABLE en lugar de FAILURE
-                    script {
-                        currentBuild.result = 'UNSTABLE'
-                        echo "⚠️ Build con advertencias, pero continuando pipeline..."
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                echo "🔍 Ejecutando análisis estático con SonarQube..."
+                dir('card-ops-producer') {
+                    withSonarQubeEnv("${SONARQUBE}") {
+                        withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                            bat """
+                                "${MAVEN_HOME}\\bin\\mvn" sonar:sonar ^
+                                -Dsonar.projectKey=%SONAR_PROJECT_KEY% ^
+                                -Dsonar.host.url=%SONAR_URL% ^
+                                -Dsonar.login=%SONAR_TOKEN% ^
+                                -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml ^
+                                -Dsonar.java.checkstyle.reportPaths=target/checkstyle-result.xml ^
+                                -Dsonar.sources=src/main/java ^
+                                -Dsonar.java.binaries=target/classes ^
+                                -Dsonar.qualitygate.wait=true
+                            """
+                        }
                     }
                 }
             }
         }
+
 
         stage('Docker Build & Push') {
             steps {
