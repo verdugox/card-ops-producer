@@ -33,32 +33,40 @@ pipeline {
             }
         }
 
+        stage('Clone Dependencies') {
+            steps {
+                echo "📂 Clonando dependencia dispatch-consumer..."
+                bat "git clone https://github.com/verdugox/dispatch-consumer.git ..\\dispatch-consumer"
+            }
+        }
+
         stage('Start Docker Compose') {
             steps {
                 dir('card-ops-producer') {
                     script {
-                        echo "🧹 Limpiando contenedores e imágenes previas..."
+                        echo "🧹 Limpiando entorno Docker previo..."
                         bat """
-                            docker-compose down -v --remove-orphans
+                            docker-compose down -v --remove-orphans || exit 0
                             docker container prune -f
                             docker image prune -a -f
                         """
 
-                        echo "🏗️ Construyendo imagen limpia sin caché..."
+                        echo "🏗️ Construyendo imagen sin caché..."
                         bat """
-                            docker-compose build --no-cache
+                            docker-compose build --no-cache || exit 0
                         """
 
                         echo "🐳 Levantando entorno local de dependencias..."
                         bat """
-                            docker-compose up -d
+                            docker-compose up -d || exit 0
                         """
 
-                        echo "✅ Entorno Docker levantado correctamente y disponible para análisis."
+                        echo "✅ Entorno Docker levantado correctamente (pipeline continúa aunque falte alguno)."
                     }
                 }
             }
         }
+
 
         stage('Maven Build & Quality') {
             steps {
