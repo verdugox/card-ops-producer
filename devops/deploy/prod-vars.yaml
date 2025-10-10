@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: springboot-app
+  labels:
+    app: springboot-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: springboot-app
+  template:
+    metadata:
+      labels:
+        app: springboot-app
+    spec:
+      containers:
+      - name: springboot-app
+        image: "verdugox/springboot-app:1.0"
+        command: ["java", "-jar", "/app/app.jar"]
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "prod"
+        - name: SPRING_DATA_MONGODB_URI
+          value: "mongodb+srv://verdugox123:Aries1990@sortec.rhyde.mongodb.net/clientsdb?ssl=true&retryWrites=true&w=majority"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: springboot-app-service
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 8086
+  selector:
+    app: springboot-app

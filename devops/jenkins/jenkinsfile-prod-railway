@@ -1,0 +1,66 @@
+pipeline {
+    agent any
+
+    environment {
+        MAVEN_HOME = tool 'Maven 3.9.9'
+        JAVA_HOME = tool 'JDK17'
+        RAILWAY_TOKEN = credentials('railway-token') // Token almacenado en Jenkins
+        DEPLOY_ENV = "prod"
+        CONFIG_FILE = "devops/deploy/prod-vars.yaml"
+    }
+
+    stages {
+        stage('Preparation') {
+            steps {
+                echo "Preparing environment..."
+                checkout scm
+                bat "${MAVEN_HOME}\\bin\\mvn --version"
+            }
+        }
+
+        stage('Build') {
+            steps {
+                dir('client-service') {
+                    bat "${MAVEN_HOME}\\bin\\mvn clean package -DskipTests"
+                }
+            }
+        }
+
+        stage('Verify JAR File') {
+            steps {
+                dir('client-service') {
+                    bat "dir target"
+                }
+            }
+        }
+
+        stage('Verify Railway CLI') {
+            steps {
+                echo "Verifying Railway CLI installation..."
+                bat '''
+                railway --version
+                '''
+            }
+        }
+
+        stage('Deploy to Railway') {
+            steps {
+                echo "Deploying application to Railway..."
+                bat '''
+                set RAILWAY_TOKEN=%RAILWAY_TOKEN%
+                railway up --detach
+                '''
+            }
+        }
+
+    }
+
+    post {
+        success {
+            echo "Pipeline completed successfully!"
+        }
+        failure {
+            echo "Pipeline failed. Check the logs."
+        }
+    }
+}

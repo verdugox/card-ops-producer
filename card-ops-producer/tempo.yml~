@@ -1,0 +1,27 @@
+server:
+  http_listen_port: 3200   # API para Grafana
+  grpc_listen_port: 4317      # Puerto gRPC interno
+
+distributor:
+  receivers:               # Recepción de spans en formato OTLP
+    otlp:
+      protocols:
+        grpc:              # gRPC → 4317 (ya lo expusiste en docker-compose)
+        http:              # HTTP → 4318 (ya lo expusiste en docker-compose)
+
+ingester:
+  trace_idle_period: 10s   # Tiempo antes de cerrar un trace inactivo
+  max_block_bytes: 1_000_000
+  max_block_duration: 5m
+
+compactor:
+  compaction:
+    block_retention: 1h    # Retención de datos (puedes aumentar a 24h+)
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /tmp/tempo     # Directorio donde guarda los bloques
+    wal:
+      path: /tmp/tempo/wal # Write Ahead Log

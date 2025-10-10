@@ -77,7 +77,7 @@ services:
       REDIS_HOST: redis
       SPRING_PROFILES_ACTIVE: docker
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      LOGSTASH_DESTINATION: logstash:5000   #  ahora la variable existe
+      LOGSTASH_HOST: logstash:5000
     ports: ["8085:8085"]
     restart: unless-stopped
     healthcheck:
@@ -116,6 +116,7 @@ services:
       REDIS_PORT: 6379
       MONGO_URI: mongodb://mongo:27017/cardsdb
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      LOGSTASH_HOST: logstash:5000
     ports: ["8086:8086"]
     restart: unless-stopped
     healthcheck:
@@ -174,6 +175,16 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
     ports: [ "3000:3000" ]
+    restart: unless-stopped
+
+  # --- Tempo (tracing backend para Grafana) ---
+  tempo:
+    image: grafana/tempo:2.5.0
+    command: [ "-config.file=/etc/tempo.yml" ]
+    volumes:
+      - ./tempo.yml:/etc/tempo.yml:ro
+    ports:
+      - "3200:3200"   # API HTTP
     restart: unless-stopped
 
   # --- OpenTelemetry Collector ---

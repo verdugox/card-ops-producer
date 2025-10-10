@@ -1,0 +1,110 @@
+pipeline {
+    agent any
+
+    environment {
+        MAVEN_HOME = tool 'Maven 3.9.9'
+        JAVA_HOME = tool 'JDK17'
+        DEPLOY_ENV = "dev"
+        CONFIG_FILE = "jenkins/dev-vars.yaml"
+        SONARQUBE = "sonarqube-local"
+        DOCKERHUB_CREDENTIALS = "dockerhub-cred"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo "📦 Clonando código fuente..."
+                checkout scm
+            }
+        }
+
+        stage('Load Configuration') {
+            steps {
+                script {
+                    echo "⚙️ Cargando configuración desde ${CONFIG_FILE}"
+                    def vars = readYaml file: CONFIG_FILE
+                    env.SONAR_URL = vars.sonar.url
+                    env.SONAR_PROJECT_KEY = vars.sonar.projectKey
+                    env.DOCKER_IMAGE = "${vars.docker.imageName}:${vars.docker.tag}"
+                    env.SKIP_TESTS = vars.build.skipTests.toString()
+                    env.ENABLE_JACOCO = vars.build.jacoco.toString()
+                    env.ENABLE_CHECKSTYLE = vars.build.checkstyle.toString()
+                }
+            }
+        }
+
+        stage('Start Docker Compose') {
+            steps {
+                echo "🐳 Levantando entorno local de dependencias (docker-compose)..."
+                bat "docker-compose up -d"
+            }
+        }
+
+        stage('Maven Build & Quality') {
+            steps {
+                dir('card-ops-producer') {
+                    echo "🏗️ Compilando y analizando código..."
+                    withSonarQubeEnv("${SONARQUBE}") {
+                        bat "\"${MAVEN_HOME}\\bin\\mvn\" clean verify sonar:sonar " +
+                            "-Dsonar.projectKey=%SONAR_PROJECT_KEY% " +
+                            "-Dsonar.host.url=%SONAR_URL%"
+                    }
+                }
+            }
+        }
+
+        stage('Docker Build & Push') {
+            steps {
+                dir('card-ops-producer') {
+                    echo "🐋 Construyendo imagen Docker local..."
+                    bat "docker build -t %DOCKER_IMAGE% ."
+                }
+                echo "📤 Subiendo imagen a DockerHub..."
+                withCredentials([usernamePassword(credentialsId: "${DOCKERHUB_CREDENTIALS}",
+                                                 usernameVariable: 'DOCKER_USER',
+                                                 passwordVariable: 'DOCKER_PASS')]) {
+                    bat "docker login -u %DOCKER_USER% -p %DOCKER_PASS%"
+                    bat "docker push %DOCKER_IMAGE%"
+                }
+            }
+        }
+
+        stage('Cleanup') {
+            steps {
+                echo "🧹 Deteniendo contenedores y limpiando..."
+                bat "docker-compose down"
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "🧾 Publicando reportes de calidad..."
+            // ✅ Publica cobertura JaCoCo si está habilitada
+            script {
+                if (env.ENABLE_JACOCO == "true") {
+                    jacoco(
+                        execPattern: '**/target/jacoco.exec',
+                        classPattern: '**/target/classes',
+                        sourcePattern: '**/src/main/java',
+                        exclusionPattern: ''
+                    )
+                }
+                if (env.ENABLE_CHECKSTYLE == "true") {
+                    recordIssues(
+                        enabledForFailure: true,
+                        tool: checkStyle(pattern: '**/target/checkstyle-result.xml')
+                    )
+                }
+            }
+        }
+
+        success {
+            echo "✅ Pipeline completado con éxito. Imagen publicada: ${env.DOCKER_IMAGE}"
+        }
+
+        failure {
+            echo "❌ Pipeline falló. Revisa los logs de Jenkins."
+        }
+    }
+}

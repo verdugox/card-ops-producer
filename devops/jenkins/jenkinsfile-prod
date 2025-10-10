@@ -1,0 +1,147 @@
+pipeline {
+    agent any
+
+    environment {
+        MAVEN_HOME = tool 'Maven 3.9.9'
+        JAVA_HOME = tool 'JDK17'
+        DOCKER_REGISTRY = 'docker.io'
+        DOCKER_IMAGE = 'verdugox/springboot-app'
+        IMAGE_TAG = '1.0'
+        CONFIG_FILE = "devops/deploy/prod-vars.yaml"
+        ARTIFACTORY_SERVER_ID = 'ArtifactoryServer'
+        FORTIFY_CREDENTIALS_ID = 'fortify-credentials'
+        FORTIFY_APP_NAME = 'client-service'
+        FORTIFY_PROJECT_VERSION = '1.0'
+        FORTIFY_URL = 'https://trial.fortify.com/Applications/237623'
+        JFROG_CREDENTIALS_ID = 'jfrog-credentials'
+        KUBECONFIG_CREDENTIALS_ID = 'kubeconfig'
+    }
+
+    stages {
+        stage('Clean Maven Repository') {
+            steps {
+                echo "Cleaning local Maven repository to force update..."
+                bat "rd /s /q %USERPROFILE%\\.m2\\repository"
+            }
+        }
+
+        stage('Preparation') {
+            steps {
+                echo "Preparing environment..."
+                checkout scm
+                bat "${MAVEN_HOME}\\bin\\mvn --version"
+            }
+        }
+
+        stage('Build JAR') {
+            steps {
+                echo "Building Spring Boot JAR..."
+                dir('client-service') {
+                    bat "${MAVEN_HOME}\\bin\\mvn clean package -DskipTests -U"
+                }
+            }
+        }
+
+        stage('Deploy to JFrog Artifactory') {
+            steps {
+                echo "Deploying artifact to JFrog Artifactory..."
+                withCredentials([usernamePassword(credentialsId: JFROG_CREDENTIALS_ID, usernameVariable: 'JFROG_USER', passwordVariable: 'JFROG_PASSWORD')]) {
+                    dir('client-service') {
+                        bat "${MAVEN_HOME}\\bin\\mvn clean deploy -U -s ${WORKSPACE}\\settings.xml -Dartifactory.username=%JFROG_USER% -Dartifactory.password=%JFROG_PASSWORD%"
+                    }
+                }
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                echo "Running SonarQube Analysis..."
+                withSonarQubeEnv('SonarQube') {
+                    withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                        dir('client-service') {
+                            bat "${MAVEN_HOME}\\bin\\mvn sonar:sonar -U -Dsonar.projectKey=client-service -Dsonar.host.url=http://localhost:9000 -Dsonar.login=%SONAR_TOKEN% -Dsonar.sources=src/main/java -Dsonar.java.binaries=target/classes"
+                        }
+                    }
+                }
+            }
+        }
+
+         stage('Fortify on Demand Analysis') {
+            steps {
+                echo "Running Fortify on Demand Analysis..."
+                withCredentials([
+                    usernamePassword(credentialsId: FORTIFY_CREDENTIALS_ID, usernameVariable: 'FOD_USERNAME', passwordVariable: 'FOD_PASSWORD'),
+                    string(credentialsId: 'fortify-token2', variable: 'FORTIFY_TOKEN')
+                ]) {
+                    dir('client-service') {
+                        bat "${MAVEN_HOME}\\bin\\mvn clean install -U -s ${WORKSPACE}\\settings.xml"
+                        bat "${MAVEN_HOME}\\bin\\mvn com.fortify.cloudscan.plugins.maven:project-spec-maven-plugin:24.2.0.0050:spec -s ${WORKSPACE}\\settings.xml -Dfortify.cloudscan.generate.spec=true"
+                        bat "if not exist cs-spec.json exit /b 1"
+                        bat "${MAVEN_HOME}\\bin\\mvn com.fortify.cloudscan.plugins.maven:project-spec-maven-plugin:24.2.0.0050:spec -s ${WORKSPACE}\\settings.xml -Dfortify.cloudscan.app=${FORTIFY_APP_NAME} -Dfortify.cloudscan.version=${FORTIFY_PROJECT_VERSION} -Dfortify.cloudscan.url=${FORTIFY_URL} -Dfortify.cloudscan.auth.token=%FORTIFY_TOKEN% -Dfortify.cloudscan.upload=true -Dfortify.cloudscan.startScan=true"
+                    }
+                }
+            }
+        }
+
+        stage('Post-build Actions - Fortify on Demand Static Assessment') {
+            steps {
+                echo "Executing Post-build Actions for Fortify on Demand"
+                script {
+                    withCredentials([string(credentialsId: 'fortify-token2', variable: 'FORTIFY_TOKEN')]) {
+                        bat "curl -X POST https://api.trial.fortify.com/api/v3/scans -H \"Authorization: Bearer %FORTIFY_TOKEN%\" -H \"Content-Type: application/json\" -d \"{\\\"applicationId\\\": \\\"${FORTIFY_APP_NAME}\\\", \\\"releaseId\\\": \\\"${FORTIFY_PROJECT_VERSION}\\\", \\\"scanType\\\": \\\"Static\\\"}\""
+                    }
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                echo "Building Docker Image..."
+                dir('client-service') {
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                        bat "docker build -t ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${IMAGE_TAG} ."
+                        bat "docker login ${DOCKER_REGISTRY} -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}"
+                        bat "docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${IMAGE_TAG}"
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to AKS') {
+            steps {
+                echo "Deploying to AKS..."
+                withCredentials([file(credentialsId: KUBECONFIG_CREDENTIALS_ID, variable: 'KUBECONFIG_FILE')]) {
+                    withEnv(["KUBECONFIG=${KUBECONFIG_FILE}"]) {
+                        bat "kubectl apply -f ${CONFIG_FILE}"
+                    }
+                }
+            }
+        }
+
+        stage('Validate Deployment') {
+            steps {
+                echo "Validating Deployment..."
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
+                    withEnv(["KUBECONFIG=${KUBECONFIG_FILE}"]) {
+                        bat "kubectl get pods -l app=springboot-app"
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline executed successfully!"
+            mail to: 'luisandresverdugox@gmail.com',
+                 subject: 'Pipeline Success: Deployment Completed',
+                 body: "The pipeline execution was successful!\n\nDetails:\nJob: ${env.JOB_NAME}\nBuild: ${env.BUILD_NUMBER}\nStatus: SUCCESS\n\nCheck the console output at ${env.BUILD_URL} for more details."
+        }
+        failure {
+            echo "Pipeline failed. Check logs for more details."
+            mail to: 'luisandresverdugox@gmail.com',
+                 subject: 'Pipeline Failed: Error in Deployment',
+                 body: "The pipeline execution failed.\n\nDetails:\nJob: ${env.JOB_NAME}\nBuild: ${env.BUILD_NUMBER}\nStatus: FAILURE\n\nCheck the console output at ${env.BUILD_URL} for more details."
+        }
+    }
+}

@@ -1,0 +1,22 @@
+java:
+  version: 17
+
+maven:
+  goals: clean verify
+
+sonar:
+  url: http://localhost:9000
+  projectKey: card-ops-producer
+
+docker:
+  imageName: verdugox/card-ops-producer
+  tag: latest
+
+build:
+  skipTests: false
+  checkstyle: true
+  jacoco: true
+
+jenkins:
+  notifySlack: false
+  branch: develop

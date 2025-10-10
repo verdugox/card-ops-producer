@@ -1,12 +1,15 @@
 <configuration scan="true">
 
-    <!-- Definir variable con fallback -->
+    <!-- Definir variable con fallback para Logstash -->
     <property name="LOGSTASH_HOST" value="${ELASTIC_HOST:-logstash:5000}" />
+
+    <!-- Importar la propiedad de Spring Boot -->
+    <springProperty scope="context" name="springAppName" source="spring.application.name"/>
 
     <!-- Consola -->
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{36} - %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{36} - [%X{traceId:-}] %msg%n</pattern>
             <charset>UTF-8</charset>
         </encoder>
     </appender>
@@ -15,14 +18,21 @@
     <appender name="LOGSTASH" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
         <destination>${LOGSTASH_HOST}</destination>
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-            <customFields>{"service":"card-ops-producer"}</customFields>
+            <!-- Se usa la propiedad springAppName en vez de spring.application.name -->
+            <customFields>{"service":"${springAppName}"}</customFields>
         </encoder>
     </appender>
 
-    <!-- Niveles globales -->
+    <!-- Root logger -->
     <root level="INFO">
         <appender-ref ref="STDOUT"/>
         <appender-ref ref="LOGSTASH"/>
     </root>
+
+    <!-- Logger específico del microservicio -->
+    <logger name="com.bank.card_ops_producer" level="DEBUG" additivity="false">
+        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="LOGSTASH"/>
+    </logger>
 
 </configuration>

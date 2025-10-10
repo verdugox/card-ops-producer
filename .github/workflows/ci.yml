@@ -96,3 +96,14 @@ jobs:                                          # Sección donde se definen los j
           labels:  ${{ steps.meta.outputs.labels }}         # Labels generados en el paso meta
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/card-ops-producer:buildcache  # Usa cache de builds previos
           cache-to:   type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/card-ops-producer:buildcache,mode=max  # Actualiza el cache remoto
+      # --- Trigger de Jenkins (integración híbrida) ---
+      - name: Trigger Jenkins Pipeline
+        if: success()
+        env:
+          JENKINS_URL: ${{ secrets.JENKINS_URL }}
+          JENKINS_USER: ${{ secrets.JENKINS_USER }}
+          JENKINS_TOKEN: ${{ secrets.JENKINS_TOKEN }}
+        run: |
+          echo "Disparando Jenkins remoto..."
+          curl -u "${JENKINS_USER}:${JENKINS_TOKEN}" \
+            -X POST "${JENKINS_URL}/job/card-ops-producer-pipeline/build?token=github-trigger"
