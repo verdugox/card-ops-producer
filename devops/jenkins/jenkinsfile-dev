@@ -35,8 +35,28 @@ pipeline {
 
         stage('Start Docker Compose') {
             steps {
-                echo "🐳 Levantando entorno local de dependencias (docker-compose)..."
-                bat "docker-compose up -d"
+                dir('card-ops-producer') {
+                    script {
+                        echo "🧹 Limpiando contenedores e imágenes previas..."
+                        bat """
+                            docker-compose down -v --remove-orphans
+                            docker container prune -f
+                            docker image prune -a -f
+                        """
+
+                        echo "🏗️ Construyendo imagen limpia sin caché..."
+                        bat """
+                            docker-compose build --no-cache
+                        """
+
+                        echo "🐳 Levantando entorno local de dependencias..."
+                        bat """
+                            docker-compose up -d
+                        """
+
+                        echo "✅ Entorno Docker levantado correctamente y disponible para análisis."
+                    }
+                }
             }
         }
 
@@ -82,13 +102,6 @@ pipeline {
                         docker push %DOCKER_IMAGE%
                     """
                 }
-            }
-        }
-
-        stage('Cleanup') {
-            steps {
-                echo "🧹 Deteniendo contenedores y limpiando..."
-                bat "docker-compose down"
             }
         }
     }
