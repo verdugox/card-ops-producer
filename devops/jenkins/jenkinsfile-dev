@@ -34,14 +34,18 @@ pipeline {
         }
 
         stage('Clone Dependencies') {
-                    steps {
-                        echo "📂 Clonando dependencia dispatch-consumer..."
-                        checkout([$class: 'GitSCM',
-                            branches: [[name: '*/develop']],
-                            userRemoteConfigs: [[url: 'https://github.com/verdugox/dispatch-consumer.git']]
-                        ])
-                    }
+            steps {
+                echo "📂 Clonando dependencia dispatch-consumer..."
+                dir('../dispatch-consumer') {
+                    // 👇 Crea el primer nivel: /dispatch-consumer
+                    checkout([$class: 'GitSCM',
+                        branches: [[name: '*/develop']],
+                        userRemoteConfigs: [[url: 'https://github.com/verdugox/dispatch-consumer.git']]
+                    ])
                 }
+            }
+        }
+
 
         stage('Start Docker Compose') {
             steps {
