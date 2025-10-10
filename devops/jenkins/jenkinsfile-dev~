@@ -34,34 +34,39 @@ pipeline {
         }
 
         stage('Clone Dependencies') {
-                    steps {
-                        echo "📂 Clonando dependencia dispatch-consumer..."
-                        checkout([$class: 'GitSCM',
-                            branches: [[name: '*/develop']],
-                            userRemoteConfigs: [[url: 'https://github.com/verdugox/dispatch-consumer.git']]
-                        ])
-                    }
-                }
+            steps {
+                echo "📂 Clonando dependencia dispatch-consumer..."
+                checkout([$class: 'GitSCM',
+                    branches: [[name: '*/develop']],
+                    userRemoteConfigs: [[url: 'https://github.com/verdugox/dispatch-consumer.git']]
+                ])
+
+            }
+        }
 
         stage('Start Docker Compose') {
             steps {
-                script {
-                    echo "🧹 Limpiando entorno Docker previo..."
-                    bat """
-                        docker-compose down -v --remove-orphans || exit 0
-                    """
+                dir('card-ops-producer') {
+                    script {
+                        echo "🧹 Limpiando entorno Docker previo..."
+                        bat """
+                            docker-compose down -v --remove-orphans || exit 0
+                            docker container prune -f
+                            docker image prune -a -f
+                        """
 
-                    echo "🏗️ Construyendo imagen sin caché..."
-                    bat """
-                        docker-compose build --no-cache || exit 0
-                    """
+                        echo "🏗️ Construyendo imagen sin caché..."
+                        bat """
+                            docker-compose build --no-cache || exit 0
+                        """
 
-                    echo "🐳 Levantando entorno local de dependencias..."
-                    bat """
-                        docker-compose up -d || exit 0
-                    """
+                        echo "🐳 Levantando entorno local de dependencias..."
+                        bat """
+                            docker-compose up -d || exit 0
+                        """
 
-                    echo "✅ Entorno Docker levantado correctamente."
+                        echo "✅ Entorno Docker levantado correctamente (pipeline continúa aunque falte alguno)."
+                    }
                 }
             }
         }
@@ -124,6 +129,15 @@ pipeline {
                         classPattern: '**/target/classes',
                         sourcePattern: '**/src/main/java',
                         exclusionPattern: ''
+                    )
+                }
+
+                // ✅ Publica resultados de Checkstyle (sin detener build)
+                if (env.ENABLE_CHECKSTYLE == "true") {
+                    recordIssues(
+                        enabledForFailure: true,
+                        qualityGates: [[threshold: 1, type: 'TOTAL', unstable: true]],
+                        tool: checkStyle(pattern: '**/target/checkstyle-result.xml')
                     )
                 }
             }
