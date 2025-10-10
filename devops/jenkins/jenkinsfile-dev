@@ -5,7 +5,7 @@ pipeline {
         MAVEN_HOME = tool 'Maven 3.9.9'
         JAVA_HOME = tool 'JDK17'
         DEPLOY_ENV = "dev"
-        CONFIG_FILE = "jenkins/dev-vars.yaml"
+        CONFIG_FILE = "devops/deploy/dev-vars.yaml"
         SONARQUBE = "sonarqube-local"
         DOCKERHUB_CREDENTIALS = "dockerhub-cred"
     }

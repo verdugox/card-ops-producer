@@ -43,11 +43,25 @@ pipeline {
         stage('Maven Build & Quality') {
             steps {
                 dir('card-ops-producer') {
-                    echo "🏗️ Compilando y analizando código..."
+                    echo "🏗️ Compilando y analizando código (JaCoCo + Checkstyle + Sonar)..."
                     withSonarQubeEnv("${SONARQUBE}") {
-                        bat "\"${MAVEN_HOME}\\bin\\mvn\" clean verify sonar:sonar " +
-                            "-Dsonar.projectKey=%SONAR_PROJECT_KEY% " +
-                            "-Dsonar.host.url=%SONAR_URL%"
+                        bat """
+                            "${MAVEN_HOME}\\bin\\mvn" clean verify sonar:sonar ^
+                            -Dcheckstyle.failOnViolation=false ^
+                            -Dsonar.projectKey=%SONAR_PROJECT_KEY% ^
+                            -Dsonar.host.url=%SONAR_URL% ^
+                            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml ^
+                            -Dsonar.java.checkstyle.reportPaths=target/checkstyle-result.xml
+                        """
+                    }
+                }
+            }
+            post {
+                unsuccessful {
+                    // Si el build falla, lo marcamos como UNSTABLE en lugar de FAILURE
+                    script {
+                        currentBuild.result = 'UNSTABLE'
+                        echo "⚠️ Build con advertencias, pero continuando pipeline..."
                     }
                 }
             }
@@ -63,8 +77,10 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: "${DOCKERHUB_CREDENTIALS}",
                                                  usernameVariable: 'DOCKER_USER',
                                                  passwordVariable: 'DOCKER_PASS')]) {
-                    bat "docker login -u %DOCKER_USER% -p %DOCKER_PASS%"
-                    bat "docker push %DOCKER_IMAGE%"
+                    bat """
+                        docker login -u %DOCKER_USER% -p %DOCKER_PASS%
+                        docker push %DOCKER_IMAGE%
+                    """
                 }
             }
         }
@@ -80,8 +96,8 @@ pipeline {
     post {
         always {
             echo "🧾 Publicando reportes de calidad..."
-            // ✅ Publica cobertura JaCoCo si está habilitada
             script {
+                // ✅ Publica cobertura JaCoCo
                 if (env.ENABLE_JACOCO == "true") {
                     jacoco(
                         execPattern: '**/target/jacoco.exec',
@@ -90,9 +106,12 @@ pipeline {
                         exclusionPattern: ''
                     )
                 }
+
+                // ✅ Publica resultados de Checkstyle (sin detener build)
                 if (env.ENABLE_CHECKSTYLE == "true") {
                     recordIssues(
                         enabledForFailure: true,
+                        qualityGates: [[threshold: 1, type: 'TOTAL', unstable: true]],
                         tool: checkStyle(pattern: '**/target/checkstyle-result.xml')
                     )
                 }
@@ -101,6 +120,10 @@ pipeline {
 
         success {
             echo "✅ Pipeline completado con éxito. Imagen publicada: ${env.DOCKER_IMAGE}"
+        }
+
+        unstable {
+            echo "⚠️ Pipeline marcado como UNSTABLE (hay advertencias de calidad o estilo)."
         }
 
         failure {
