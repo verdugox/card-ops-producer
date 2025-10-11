@@ -63,12 +63,17 @@ pipeline {
                             docker-compose build --no-cache
                         """
 
-                        echo "🐳 Levantando entorno local de dependencias..."
+                        echo "🐳 Levantando entorno local de dependencias (sin bloqueo del pipeline)..."
                         bat """
-                            start /B docker-compose up -d || exit 0
+                            (
+                                docker-compose up -d ^
+                                || echo ⚠️ Advertencia: Falló el docker-compose up, pero el pipeline continuará.
+                            ) > docker_compose_log.txt 2>&1 &
+                            exit 0
                         """
 
-                        echo "✅ Entorno Docker levantado correctamente."
+                        echo "🚀 Jenkins continúa sin esperar a Docker Compose."
+
                     }
                 }
             }
