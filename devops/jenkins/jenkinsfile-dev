@@ -13,7 +13,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                echo "📦 Clonando código fuente..."
+                echo " Clonando código fuente..."
                 checkout scm
             }
         }
@@ -21,7 +21,7 @@ pipeline {
         stage('Load Configuration') {
             steps {
                 script {
-                    echo "⚙️ Cargando configuración desde ${CONFIG_FILE}"
+                    echo " Cargando configuración desde ${CONFIG_FILE}"
                     def vars = readYaml file: CONFIG_FILE
                     env.SONAR_URL = vars.sonar.url
                     env.SONAR_PROJECT_KEY = vars.sonar.projectKey
@@ -35,9 +35,9 @@ pipeline {
 
         stage('Clone Dependencies') {
             steps {
-                echo "📂 Clonando dependencia dispatch-consumer..."
+                echo " Clonando dependencia dispatch-consumer..."
                 dir('../dispatch-consumer') {
-                    // 👇 Crea el primer nivel: /dispatch-consumer
+                    //  Crea el primer nivel: /dispatch-consumer
                     checkout([$class: 'GitSCM',
                         branches: [[name: '*/develop']],
                         userRemoteConfigs: [[url: 'https://github.com/verdugox/dispatch-consumer.git']]
@@ -49,30 +49,30 @@ pipeline {
 
         stage('Start Docker Compose') {
             steps {
-                dir('card-ops-producer') { // 👈 docker-compose.yml está aquí
+                dir('card-ops-producer') { //  docker-compose.yml está aquí
                     script {
-                        echo "🧹 Limpiando entorno Docker previo..."
+                        echo " Limpiando entorno Docker previo..."
                         bat """
                             docker-compose down -v --remove-orphans || exit 0
                             docker container prune -f
                             docker image prune -a -f
                         """
 
-                        echo "🏗️ Construyendo imágenes sin caché..."
+                        echo " Construyendo imágenes sin caché..."
                         bat """
                             docker-compose build --no-cache
                         """
 
-                        echo "🐳 Levantando entorno local de dependencias (sin bloqueo del pipeline)..."
+                        echo " Levantando entorno local de dependencias (sin bloqueo del pipeline)..."
                         bat """
                             (
                                 docker-compose up -d ^
-                                || echo ⚠️ Advertencia: Falló el docker-compose up, pero el pipeline continuará.
+                                || echo  Advertencia: Falló el docker-compose up, pero el pipeline continuará.
                             ) > docker_compose_log.txt 2>&1 &
                             exit 0
                         """
 
-                        echo "🚀 Jenkins continúa sin esperar a Docker Compose."
+                        echo " Jenkins continúa sin esperar a Docker Compose."
 
                     }
                 }
@@ -85,7 +85,7 @@ pipeline {
         stage('Maven Build & Quality') {
             steps {
                 dir('card-ops-producer') {
-                    echo "🏗️ Compilando código con Maven..."
+                    echo " Compilando código con Maven..."
                     bat """
                         "${MAVEN_HOME}\\bin\\mvn" clean verify ^
                         -DskipTests=%SKIP_TESTS% ^
@@ -97,7 +97,7 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                echo "🔍 Ejecutando análisis estático con SonarQube..."
+                echo " Ejecutando análisis estático con SonarQube..."
                 dir('card-ops-producer') {
                     withSonarQubeEnv("${SONARQUBE}") {
                         withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
@@ -122,10 +122,10 @@ pipeline {
         stage('Docker Build & Push') {
             steps {
                 dir('card-ops-producer') {
-                    echo "🐋 Construyendo imagen Docker local..."
+                    echo " Construyendo imagen Docker local..."
                     bat "docker build -t %DOCKER_IMAGE% ."
                 }
-                echo "📤 Subiendo imagen a DockerHub..."
+                echo " Subiendo imagen a DockerHub..."
                 withCredentials([usernamePassword(credentialsId: "${DOCKERHUB_CREDENTIALS}",
                                                  usernameVariable: 'DOCKER_USER',
                                                  passwordVariable: 'DOCKER_PASS')]) {
@@ -140,9 +140,9 @@ pipeline {
 
     post {
         always {
-            echo "🧾 Publicando reportes de calidad..."
+            echo " Publicando reportes de calidad..."
             script {
-                // ✅ Publica cobertura JaCoCo
+                //  Publica cobertura JaCoCo
                 if (env.ENABLE_JACOCO == "true") {
                     jacoco(
                         execPattern: '**/target/jacoco.exec',
@@ -155,15 +155,15 @@ pipeline {
         }
 
         success {
-            echo "✅ Pipeline completado con éxito. Imagen publicada: ${env.DOCKER_IMAGE}"
+            echo " Pipeline completado con éxito. Imagen publicada: ${env.DOCKER_IMAGE}"
         }
 
         unstable {
-            echo "⚠️ Pipeline marcado como UNSTABLE (hay advertencias de calidad o estilo)."
+            echo " Pipeline marcado como UNSTABLE (hay advertencias de calidad o estilo)."
         }
 
         failure {
-            echo "❌ Pipeline falló. Revisa los logs de Jenkins."
+            echo " Pipeline falló. Revisa los logs de Jenkins."
         }
     }
 }
