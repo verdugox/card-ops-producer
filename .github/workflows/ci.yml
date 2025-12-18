@@ -102,22 +102,17 @@ jobs:                                          # Sección donde se definen los j
         shell: bash
         run: |
           echo "Triggering Jenkins Job..."
+
           response=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST "${{ secrets.JENKINS_URL }}?token=${{ secrets.JENKINS_JOB_TOKEN }}" \
-            --user "${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_API_TOKEN }}")
+            -X POST "${{ secrets.JENKINS_URL }}?token=${{ secrets.JENKINS_JOB_TOKEN }}")
 
           if [ "$response" == "201" ] || [ "$response" == "200" ]; then
             echo "Jenkins job triggered successfully."
-          elif [ "$response" == "401" ]; then
-            echo "Unauthorized (401). Check your Jenkins user or API token."
-            exit 1
-          elif [ "$response" == "403" ]; then
-            echo " Forbidden (403). CSRF protection may be blocking the request."
-            exit 1
           else
-            echo " Unexpected response: HTTP $response"
+            echo "Jenkins trigger failed. HTTP $response"
             exit 1
           fi
+
         env:
           JENKINS_URL: ${{ secrets.JENKINS_URL }}
           JENKINS_USER: ${{ secrets.JENKINS_USER }}
