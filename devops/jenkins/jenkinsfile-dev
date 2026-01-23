@@ -46,7 +46,6 @@ pipeline {
             }
         }
 
-
         stage('Start Docker Compose') {
             steps {
                 dir('card-ops-producer') { //  docker-compose.yml está aquí
