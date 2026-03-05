@@ -19,6 +19,7 @@ public class CardReplacementController {
 
     @Operation(summary="Solicita reemplazo de tarjeta y publica evento Avro en Kafka")
     @PostMapping
+
     public Single<ResponseEntity<String>> create(@Valid @RequestBody CardReplacementRequestDto dto){
         return service.process(dto).map(id -> ResponseEntity.accepted().body(id));
     }
