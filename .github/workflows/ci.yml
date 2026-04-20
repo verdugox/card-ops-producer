@@ -98,6 +98,7 @@ jobs:                                          # Sección donde se definen los j
           cache-to:   type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/card-ops-producer:buildcache,mode=max  # Actualiza el cache remoto
 
       # --- Trigger de Jenkins (integración híbrida) ---
+
       - name: Trigger Jenkins Job
         shell: bash
         run: |
