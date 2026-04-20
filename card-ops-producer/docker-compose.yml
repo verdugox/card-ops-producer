@@ -126,7 +126,6 @@ services:
       retries: 20
 
   # --- Exporters & Observability ---
-
   # Exporta métricas de Kafka (broker)
   kafka-exporter:
     image: danielqsj/kafka-exporter:latest
