@@ -156,7 +156,6 @@ pipeline {
         success {
             echo " Pipeline completado con éxito. Imagen publicada: ${env.DOCKER_IMAGE}"
         }
-
         unstable {
             echo " Pipeline marcado como UNSTABLE (hay advertencias de calidad o estilo)."
         }
