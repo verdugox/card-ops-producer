@@ -12,7 +12,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-
   kafka:
     image: confluentinc/cp-kafka:7.6.1
     depends_on:
